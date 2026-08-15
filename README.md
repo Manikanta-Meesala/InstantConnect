@@ -90,21 +90,26 @@ graph TD
 ## 💻 Tech Stack
 
 ### **Frontend**
-- **Framework**: React 18
-- **Build Tool**: Vite 5
-- **Styling**: Vanilla CSS3 (Custom Design System with CSS Variables, Flexbox/Grid, & Glassmorphism)
-- **Icons**: Lucide React
-- **Protocols**: HTML5 WebRTC MediaDevices (Camera Scanner), EventSource SSE API
+![React](https://img.shields.io/badge/React_18-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![JavaScript](https://img.shields.io/badge/JavaScript_ES6+-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite_5-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
+![CSS3](https://img.shields.io/badge/CSS3_Glassmorphism-1572B6?style=for-the-badge&logo=css3&logoColor=white)
+![WebRTC](https://img.shields.io/badge/WebRTC_Camera_Scanner-333333?style=for-the-badge&logo=webrtc&logoColor=white)
 
-### **Backend**
-- **Framework**: Java 17, Spring Boot 3
-- **ORM & Data**: Spring Data JPA, Hibernate
-- **Real-time Protocol**: Server-Sent Events (`SseEmitter`)
-- **Scheduling**: Spring `@Scheduled` Task Scheduler
+### **Backend & APIs**
+![Java](https://img.shields.io/badge/Java_17-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot_3-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)
+![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
+![Hibernate](https://img.shields.io/badge/Hibernate-59666C?style=for-the-badge&logo=hibernate&logoColor=white)
+![SSE](https://img.shields.io/badge/Server--Sent_Events_(SSE)-000000?style=for-the-badge&logo=rss&logoColor=orange)
 
 ### **Database & Infrastructure**
-- **Database**: MySQL / H2 Relational DB
-- **Containerization**: Docker, Docker Compose, Nginx
+![MySQL](https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
+![H2 Database](https://img.shields.io/badge/H2_In--Memory_DB-025E8D?style=for-the-badge&logo=databricks&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white)
+![Apache Maven](https://img.shields.io/badge/Apache_Maven-C71A36?style=for-the-badge&logo=apache-maven&logoColor=white)
 
 ---
 
