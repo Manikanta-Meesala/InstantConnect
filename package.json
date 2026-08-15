@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && powershell -Command \"Remove-Item -Recurse -Force backend/src/main/resources/static/* -ErrorAction SilentlyContinue; Copy-Item -Recurse dist/* backend/src/main/resources/static/\"",
+    "build": "vite build && node copy-assets.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
