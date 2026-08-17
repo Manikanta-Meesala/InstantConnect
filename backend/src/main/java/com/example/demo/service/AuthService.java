@@ -38,7 +38,7 @@ public class AuthService {
 
         return new AuthDto.AuthResponse(
                 true,
-                "Verification code sent to " + cleanedPhone + " via GETOTP SMS gateway. (Demo OTP: " + generatedOtp + ")",
+                "Verification code sent to " + cleanedPhone + " via SMS gateway.",
                 cleanedPhone,
                 getDisplayNameForPhone(cleanedPhone)
         );

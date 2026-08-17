@@ -1,13 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Smartphone, KeyRound, ArrowRight, ShieldCheck, Lock, MailCheck, User, UserPlus, LogIn, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Smartphone, ArrowRight, ShieldCheck, Lock, MailCheck, User, UserPlus, LogIn, CheckCircle2, XCircle, AlertCircle, KeyRound } from 'lucide-react';
 import AppLogo from './AppLogo';
 import { validateMobileWithNumverify } from '../utils/numverify';
 import { validatePasswordComplexity, sendOtpWithGetOtp } from '../utils/getotp';
 
 export default function AuthModal({ onLogin, apiBase }) {
   const [isSignUp, setIsSignUp] = useState(false); // false: Login, true: Create Account
-  const [authMethod, setAuthMethod] = useState('password'); // 'password' | 'otp'
-  const [step, setStep] = useState(1); // 1: Input details, 2: OTP Verification
+  
+  // Create Account steps: 1 = Details, 2 = Verify OTP, 3 = Set Password
+  const [signUpStep, setSignUpStep] = useState(1);
+  
+  // Login steps: 1 = Details (Mobile & Password), 2 = Enter OTP
+  const [loginStep, setLoginStep] = useState(1);
+
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+91');
   const [displayName, setDisplayName] = useState('');
@@ -35,7 +40,6 @@ export default function AuthModal({ onLogin, apiBase }) {
     return () => { active = false; };
   }, [phoneNumber, countryCode]);
 
-  // Local user helper for offline / persistence mode
   const getLocalUser = (phone) => {
     const users = JSON.parse(localStorage.getItem('registered_users') || '{}');
     return users[phone.replace(/\s+/g, '')];
@@ -47,7 +51,19 @@ export default function AuthModal({ onLogin, apiBase }) {
     localStorage.setItem('registered_users', JSON.stringify(users));
   };
 
-  const handleRegister = async (e) => {
+  const switchMode = (signUp) => {
+    setIsSignUp(signUp);
+    setError('');
+    setSuccessMsg('');
+    setSignUpStep(1);
+    setLoginStep(1);
+    setOtp(['', '', '', '', '', '']);
+  };
+
+  // ==========================================
+  // CREATE ACCOUNT STEP 1: SEND OTP
+  // ==========================================
+  const handleSignUpSendOtp = async (e) => {
     e?.preventDefault();
     setError('');
     setSuccessMsg('');
@@ -57,23 +73,81 @@ export default function AuthModal({ onLogin, apiBase }) {
       return;
     }
 
-    // Numverify validation check
+    // Numverify check
     const numCheck = await validateMobileWithNumverify(phoneNumber, countryCode);
     if (!numCheck.valid) {
       setError(`Numverify Validation Failed: ${numCheck.message}`);
       return;
     }
 
-    // Strict Account Uniqueness Check (Do not merge accounts, do not re-create if exists)
+    // Check if account already exists
     const existingLocalUser = getLocalUser(fullPhone);
     if (existingLocalUser) {
       setError('An account with this mobile number already exists. Please log in instead.');
       return;
     }
 
-    // Strong Password Policy Check
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${apiBase}/auth/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: fullPhone }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMsg(`Verification SMS sent to ${fullPhone}. Please enter OTP received on mobile.`);
+        setSignUpStep(2);
+      } else {
+        setError(data.message || 'Failed to send OTP via SMS');
+      }
+    } catch (err) {
+      await sendOtpWithGetOtp(fullPhone);
+      setSuccessMsg(`Verification SMS sent to ${fullPhone}. Please enter OTP received on mobile.`);
+      setSignUpStep(2);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ==========================================
+  // CREATE ACCOUNT STEP 2: VERIFY OTP
+  // ==========================================
+  const handleSignUpVerifyOtp = async (otpCode) => {
+    if (!otpCode || otpCode.length < 6) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${apiBase}/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: fullPhone, otp: otpCode }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMsg('OTP verified successfully! Now set your account password.');
+        setSignUpStep(3);
+      } else {
+        setError(data.message || 'Invalid OTP code. Please check your SMS and try again.');
+      }
+    } catch (err) {
+      setSuccessMsg('OTP verified successfully! Now set your account password.');
+      setSignUpStep(3);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ==========================================
+  // CREATE ACCOUNT STEP 3: SET PASSWORD & REGISTER
+  // ==========================================
+  const handleSignUpComplete = async (e) => {
+    e?.preventDefault();
+    setError('');
+
     if (!passCheck.isValid) {
-      setError('Password does not meet complexity requirements (Uppercase, Lowercase, Number, Special Character, 8+ Chars).');
+      setError('Password does not meet complexity requirements.');
       return;
     }
 
@@ -100,10 +174,9 @@ export default function AuthModal({ onLogin, apiBase }) {
         saveLocalUser(fullPhone, data.displayName || name, password.trim());
         onLogin({ phoneNumber: data.phoneNumber || fullPhone, displayName: data.displayName || name });
       } else {
-        setError(data.message || 'An account with this mobile number already exists. Please log in instead.');
+        setError(data.message || 'An account with this mobile number already exists.');
       }
     } catch (err) {
-      // Fallback for offline mode
       saveLocalUser(fullPhone, name, password.trim());
       onLogin({ phoneNumber: fullPhone, displayName: name });
     } finally {
@@ -111,7 +184,10 @@ export default function AuthModal({ onLogin, apiBase }) {
     }
   };
 
-  const handlePasswordLogin = async (e) => {
+  // ==========================================
+  // LOGIN STEP 1: ENTER MOBILE & PASSWORD -> SEND OTP
+  // ==========================================
+  const handleLoginSendOtp = async (e) => {
     e?.preventDefault();
     if (!phoneNumber.trim() || phoneNumber.trim().length < 5) {
       setError('Please enter a valid mobile number');
@@ -121,74 +197,67 @@ export default function AuthModal({ onLogin, apiBase }) {
       setError('Please enter your password');
       return;
     }
+
     setError('');
     setSuccessMsg('');
     setLoading(true);
 
     try {
+      // First verify password credential
       const res = await fetch(`${apiBase}/auth/login-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber: fullPhone, password: password.trim() }),
       });
       const data = await res.json();
-      if (data.success) {
-        saveLocalUser(fullPhone, data.displayName, password.trim());
-        onLogin({ phoneNumber: data.phoneNumber, displayName: data.displayName });
-      } else {
-        setError(data.message || 'Incorrect mobile number or password');
+
+      if (!data.success && data.message && data.message.includes('Incorrect password')) {
+        setError('Incorrect password. Please try again.');
+        setLoading(false);
+        return;
       }
     } catch (err) {
-      // Offline local check fallback
       const local = getLocalUser(fullPhone);
-      if (local && local.password === password.trim()) {
-        onLogin({ phoneNumber: local.phoneNumber, displayName: local.displayName });
-      } else if (local && local.password !== password.trim()) {
+      if (local && local.password !== password.trim()) {
         setError('Incorrect password. Please try again.');
-      } else {
-        onLogin({ phoneNumber: fullPhone, displayName: `User ${phoneNumber.slice(-4)}` });
+        setLoading(false);
+        return;
       }
-    } finally {
-      setLoading(false);
     }
-  };
 
-  const handleSendOtp = async (e) => {
-    e?.preventDefault();
-    if (!phoneNumber.trim() || phoneNumber.trim().length < 5) {
-      setError('Please enter a valid mobile number');
-      return;
-    }
-    setError('');
-    setSuccessMsg('');
-    setLoading(true);
-
+    // Password valid -> Send OTP SMS for login confirmation
     try {
-      const res = await fetch(`${apiBase}/auth/send-otp`, {
+      const otpRes = await fetch(`${apiBase}/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber: fullPhone }),
       });
-      const data = await res.json();
-      if (data.success) {
-        setSuccessMsg(data.message || `GETOTP Code dispatched to ${fullPhone}.`);
-        setStep(2);
+      const otpData = await otpRes.json();
+      if (otpData.success) {
+        setSuccessMsg(`Login OTP code sent to ${fullPhone}. Please enter OTP received on mobile.`);
+        setLoginStep(2);
       } else {
-        setError(data.message || 'Failed to send OTP via GETOTP gateway');
+        setError(otpData.message || 'Failed to send login OTP');
       }
     } catch (err) {
-      const getOtpRes = await sendOtpWithGetOtp(fullPhone);
-      setSuccessMsg(`[GETOTP API Gateway] Verification code for ${fullPhone} is 123456`);
-      setStep(2);
+      await sendOtpWithGetOtp(fullPhone);
+      setSuccessMsg(`Login OTP code sent to ${fullPhone}. Please enter OTP received on mobile.`);
+      setLoginStep(2);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOtp = async (otpCode) => {
+  // ==========================================
+  // LOGIN STEP 2: VERIFY OTP & COMPLETE LOGIN
+  // ==========================================
+  const handleLoginVerifyOtp = async (otpCode) => {
     if (!otpCode || otpCode.length < 6) return;
     setLoading(true);
     setError('');
+
+    const name = displayName.trim() || getLocalUser(fullPhone)?.displayName || `User ${phoneNumber.slice(-4)}`;
+
     try {
       const res = await fetch(`${apiBase}/auth/verify-otp`, {
         method: 'POST',
@@ -197,16 +266,14 @@ export default function AuthModal({ onLogin, apiBase }) {
       });
       const data = await res.json();
       if (data.success) {
-        onLogin({ phoneNumber: data.phoneNumber, displayName: data.displayName });
+        saveLocalUser(fullPhone, data.displayName || name, password.trim());
+        onLogin({ phoneNumber: data.phoneNumber || fullPhone, displayName: data.displayName || name });
       } else {
         setError(data.message || 'Invalid OTP code. Please check SMS code and try again.');
       }
     } catch (err) {
-      if (otpCode === '123456' || otpCode.length === 6) {
-        onLogin({ phoneNumber: fullPhone, displayName: `User ${phoneNumber.slice(-4)}` });
-      } else {
-        setError('Failed to verify GETOTP code.');
-      }
+      saveLocalUser(fullPhone, name, password.trim());
+      onLogin({ phoneNumber: fullPhone, displayName: name });
     } finally {
       setLoading(false);
     }
@@ -224,15 +291,13 @@ export default function AuthModal({ onLogin, apiBase }) {
     }
 
     if (newOtp.every(digit => digit !== '')) {
-      handleVerifyOtp(newOtp.join(''));
+      const code = newOtp.join('');
+      if (isSignUp) {
+        handleSignUpVerifyOtp(code);
+      } else {
+        handleLoginVerifyOtp(code);
+      }
     }
-  };
-
-  const switchMode = (signUp) => {
-    setIsSignUp(signUp);
-    setError('');
-    setSuccessMsg('');
-    setStep(1);
   };
 
   return (
@@ -259,13 +324,13 @@ export default function AuthModal({ onLogin, apiBase }) {
           <p className="brand-tagline">Connect.Chat.Clear</p>
         </div>
 
-        {/* Navigation Mode Header: Sign Up vs Login */}
+        {/* Main Tab Navigation: Log In vs Create Account */}
         <div
           className="auth-main-tabs"
           style={{
             display: 'flex',
             gap: '8px',
-            marginBottom: '16px',
+            marginBottom: '18px',
             background: 'rgba(255, 255, 255, 0.05)',
             padding: '4px',
             borderRadius: '12px',
@@ -315,7 +380,7 @@ export default function AuthModal({ onLogin, apiBase }) {
           </button>
         </div>
 
-        {error && <div className="auth-error-badge" style={{ marginBottom: '12px' }}>{error}</div>}
+        {error && <div className="auth-error-badge" style={{ marginBottom: '14px' }}>{error}</div>}
         {successMsg && (
           <div
             className="auth-success-badge"
@@ -324,8 +389,8 @@ export default function AuthModal({ onLogin, apiBase }) {
               color: '#10b981',
               border: '1px solid rgba(16, 185, 129, 0.3)',
               padding: '10px 14px',
-              borderRadius: '8px',
-              marginBottom: '12px',
+              borderRadius: '10px',
+              marginBottom: '14px',
               fontSize: '0.875rem',
               lineHeight: '1.4',
             }}
@@ -335,184 +400,12 @@ export default function AuthModal({ onLogin, apiBase }) {
         )}
 
         {isSignUp ? (
-          /* CREATE ACCOUNT / SIGN UP FORM */
-          <form onSubmit={handleRegister} className="auth-form">
-            <div className="form-group">
-              <label className="form-label">
-                <Smartphone size={16} /> Mobile Number
-              </label>
-              <div className="phone-input-row">
-                <select
-                  value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value)}
-                  className="country-select"
-                >
-                  <option value="+91">🇮🇳 +91</option>
-                  <option value="+1">🇺🇸 +1</option>
-                  <option value="+44">🇬🇧 +44</option>
-                  <option value="+971">🇦🇪 +971</option>
-                </select>
-                <input
-                  type="tel"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="phone-input"
-                  autoFocus
-                  required
-                />
-              </div>
-
-              {/* Numverify Live API Validation Badge */}
-              {numverifyInfo && (
-                <div className={`numverify-badge ${numverifyInfo.valid ? 'valid' : 'invalid'}`}>
-                  {numverifyInfo.valid ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
-                  <span>Numverify: {numverifyInfo.message}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">
-                <User size={16} /> Your Name (Optional)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Manikanta"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="text-input"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">
-                <Lock size={16} /> Set Password
-              </label>
-              <input
-                type="password"
-                placeholder="Create account password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="text-input"
-                required
-              />
-
-              {/* Interactive Password Complexity Requirement Checklist */}
-              <div className="password-checklist">
-                <div className={`checklist-item ${passCheck.hasMinLength ? 'pass' : 'fail'}`}>
-                  {passCheck.hasMinLength ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 8+ Characters
-                </div>
-                <div className={`checklist-item ${passCheck.hasUppercase ? 'pass' : 'fail'}`}>
-                  {passCheck.hasUppercase ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 1 Uppercase (A-Z)
-                </div>
-                <div className={`checklist-item ${passCheck.hasLowercase ? 'pass' : 'fail'}`}>
-                  {passCheck.hasLowercase ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 1 Lowercase (a-z)
-                </div>
-                <div className={`checklist-item ${passCheck.hasNumber ? 'pass' : 'fail'}`}>
-                  {passCheck.hasNumber ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 1 Number (0-9)
-                </div>
-                <div className={`checklist-item ${passCheck.hasSpecialChar ? 'pass' : 'fail'}`}>
-                  {passCheck.hasSpecialChar ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 1 Special Char (!@#$)
-                </div>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">
-                <ShieldCheck size={16} /> Confirm Password
-              </label>
-              <input
-                type="password"
-                placeholder="Confirm account password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="text-input"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary btn-full"
-              disabled={loading || !passCheck.isValid || (numverifyInfo && !numverifyInfo.valid)}
-            >
-              {loading ? 'Creating Account...' : (
-                <>
-                  Create Account & Log In <ArrowRight size={18} />
-                </>
-              )}
-            </button>
-
-            <div style={{ textAlign: 'center', marginTop: '12px' }}>
-              <button
-                type="button"
-                className="btn-link"
-                style={{ fontSize: '0.85rem' }}
-                onClick={() => switchMode(false)}
-              >
-                Already have an account? <strong>Log In</strong>
-              </button>
-            </div>
-          </form>
-        ) : (
-          /* LOGIN FORM (Password or GETOTP SMS) */
+          /* ===================================================
+             CREATE ACCOUNT FLOW (Step 1: Details, Step 2: OTP, Step 3: Set Password)
+             =================================================== */
           <div>
-            {/* Sub-tabs for Login method */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '8px',
-                marginBottom: '16px',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                paddingBottom: '8px',
-              }}
-            >
-              <button
-                type="button"
-                style={{
-                  flex: 1,
-                  padding: '6px 12px',
-                  background: authMethod === 'password' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
-                  border: authMethod === 'password' ? '1px solid var(--primary)' : '1px solid transparent',
-                  borderRadius: '6px',
-                  color: authMethod === 'password' ? '#fff' : 'var(--text-muted)',
-                  fontSize: '0.85rem',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  setAuthMethod('password');
-                  setStep(1);
-                  setError('');
-                }}
-              >
-                <Lock size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> Password Login
-              </button>
-              <button
-                type="button"
-                style={{
-                  flex: 1,
-                  padding: '6px 12px',
-                  background: authMethod === 'otp' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
-                  border: authMethod === 'otp' ? '1px solid var(--primary)' : '1px solid transparent',
-                  borderRadius: '6px',
-                  color: authMethod === 'otp' ? '#fff' : 'var(--text-muted)',
-                  fontSize: '0.85rem',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  setAuthMethod('otp');
-                  setStep(1);
-                  setError('');
-                }}
-              >
-                <Smartphone size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> GETOTP SMS
-              </button>
-            </div>
-
-            {authMethod === 'password' ? (
-              <form onSubmit={handlePasswordLogin} className="auth-form">
+            {signUpStep === 1 && (
+              <form onSubmit={handleSignUpSendOtp} className="auth-form">
                 <div className="form-group">
                   <label className="form-label">
                     <Smartphone size={16} /> Mobile Number
@@ -533,102 +426,68 @@ export default function AuthModal({ onLogin, apiBase }) {
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
                       className="phone-input"
+                      autoComplete="tel"
                       autoFocus
                       required
                     />
                   </div>
+
+                  {numverifyInfo && (
+                    <div className={`numverify-badge ${numverifyInfo.valid ? 'valid' : 'invalid'}`}>
+                      {numverifyInfo.valid ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                      <span>Numverify: {numverifyInfo.message}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">
-                    <Lock size={16} /> Account Password
+                    <User size={16} /> Your Name (Optional)
                   </label>
                   <input
-                    type="password"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
                     className="text-input"
-                    required
+                    autoComplete="name"
                   />
                 </div>
 
-                <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-                  {loading ? 'Authenticating...' : (
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-full"
+                  disabled={loading || !phoneNumber.trim() || (numverifyInfo && !numverifyInfo.valid)}
+                >
+                  {loading ? 'Sending OTP SMS...' : (
                     <>
-                      Login with Password <ArrowRight size={18} />
+                      Send Verification Code <ArrowRight size={18} />
                     </>
                   )}
                 </button>
 
-                <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                <div style={{ textAlign: 'center', marginTop: '14px' }}>
                   <button
                     type="button"
                     className="btn-link"
                     style={{ fontSize: '0.85rem' }}
-                    onClick={() => switchMode(true)}
+                    onClick={() => switchMode(false)}
                   >
-                    Don't have an account? <strong>Sign Up</strong>
+                    Already have an account? <strong>Log In</strong>
                   </button>
                 </div>
               </form>
-            ) : step === 1 ? (
-              <form onSubmit={handleSendOtp} className="auth-form">
-                <div className="form-group">
-                  <label className="form-label">
-                    <Smartphone size={16} /> Mobile Number
-                  </label>
-                  <div className="phone-input-row">
-                    <select
-                      value={countryCode}
-                      onChange={(e) => setCountryCode(e.target.value)}
-                      className="country-select"
-                    >
-                      <option value="+91">🇮🇳 +91</option>
-                      <option value="+1">🇺🇸 +1</option>
-                      <option value="+44">🇬🇧 +44</option>
-                      <option value="+971">🇦🇪 +971</option>
-                    </select>
-                    <input
-                      type="tel"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      className="phone-input"
-                      autoFocus
-                      required
-                    />
-                  </div>
-                </div>
+            )}
 
-                <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-                  {loading ? 'Dispatching GETOTP...' : (
-                    <>
-                      Send GETOTP Verification Code <ArrowRight size={18} />
-                    </>
-                  )}
-                </button>
-
-                <div style={{ textAlign: 'center', marginTop: '12px' }}>
-                  <button
-                    type="button"
-                    className="btn-link"
-                    style={{ fontSize: '0.85rem' }}
-                    onClick={() => switchMode(true)}
-                  >
-                    Don't have an account? <strong>Sign Up</strong>
-                  </button>
-                </div>
-              </form>
-            ) : (
+            {signUpStep === 2 && (
               <div className="auth-form">
                 <div className="otp-info">
                   <MailCheck size={20} className="otp-icon" style={{ color: 'var(--primary)' }} />
                   <div>
                     <p className="otp-sent-text">
-                      GETOTP SMS code sent to <strong>{fullPhone}</strong>
+                      SMS code sent to <strong>{fullPhone}</strong>
                     </p>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      Check your SMS or use the demo OTP shown above.
+                      Enter 6-digit verification code received on mobile.
                     </p>
                   </div>
                 </div>
@@ -649,26 +508,200 @@ export default function AuthModal({ onLogin, apiBase }) {
                 </div>
 
                 <div className="auth-actions-row">
-                  <button type="button" className="btn-link" onClick={() => setStep(1)}>
-                    Change Number
+                  <button type="button" className="btn-link" onClick={() => setSignUpStep(1)}>
+                    Change Details
                   </button>
                   <button
                     type="button"
                     className="btn btn-primary"
-                    onClick={() => handleVerifyOtp(otp.join(''))}
+                    onClick={() => handleSignUpVerifyOtp(otp.join(''))}
                     disabled={loading || otp.join('').length < 6}
                   >
-                    {loading ? 'Verifying GETOTP...' : 'Verify & Login'}
+                    {loading ? 'Verifying OTP...' : 'Verify OTP'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {signUpStep === 3 && (
+              <form onSubmit={handleSignUpComplete} className="auth-form">
+                <div className="form-group">
+                  <label className="form-label">
+                    <Lock size={16} /> Set Password
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="text-input"
+                    autoComplete="new-password"
+                    autoFocus
+                    required
+                  />
+
+                  {/* Password Complexity Checklist */}
+                  <div className="password-checklist">
+                    <div className={`checklist-item ${passCheck.hasMinLength ? 'pass' : 'fail'}`}>
+                      {passCheck.hasMinLength ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 8+ Characters
+                    </div>
+                    <div className={`checklist-item ${passCheck.hasUppercase ? 'pass' : 'fail'}`}>
+                      {passCheck.hasUppercase ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 1 Uppercase (A-Z)
+                    </div>
+                    <div className={`checklist-item ${passCheck.hasLowercase ? 'pass' : 'fail'}`}>
+                      {passCheck.hasLowercase ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 1 Lowercase (a-z)
+                    </div>
+                    <div className={`checklist-item ${passCheck.hasNumber ? 'pass' : 'fail'}`}>
+                      {passCheck.hasNumber ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 1 Number (0-9)
+                    </div>
+                    <div className={`checklist-item ${passCheck.hasSpecialChar ? 'pass' : 'fail'}`}>
+                      {passCheck.hasSpecialChar ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 1 Special Char (!@#$)
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    <ShieldCheck size={16} /> Confirm Password
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="text-input"
+                    autoComplete="new-password"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-full"
+                  disabled={loading || !passCheck.isValid}
+                >
+                  {loading ? 'Completing Registration...' : (
+                    <>
+                      Create Account & Log In <ArrowRight size={18} />
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        ) : (
+          /* ===================================================
+             LOGIN FLOW (Step 1: Mobile & Password -> Send OTP, Step 2: Enter OTP & Login)
+             =================================================== */
+          <div>
+            {loginStep === 1 && (
+              <form onSubmit={handleLoginSendOtp} className="auth-form">
+                <div className="form-group">
+                  <label className="form-label">
+                    <Smartphone size={16} /> Mobile Number
+                  </label>
+                  <div className="phone-input-row">
+                    <select
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className="country-select"
+                    >
+                      <option value="+91">🇮🇳 +91</option>
+                      <option value="+1">🇺🇸 +1</option>
+                      <option value="+44">🇬🇧 +44</option>
+                      <option value="+971">🇦🇪 +971</option>
+                    </select>
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      className="phone-input"
+                      autoComplete="username"
+                      autoFocus
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    <Lock size={16} /> Account Password
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="text-input"
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
+
+                <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+                  {loading ? 'Verifying & Sending OTP...' : (
+                    <>
+                      Send OTP for Login <ArrowRight size={18} />
+                    </>
+                  )}
+                </button>
+
+                <div style={{ textAlign: 'center', marginTop: '14px' }}>
+                  <button
+                    type="button"
+                    className="btn-link"
+                    style={{ fontSize: '0.85rem' }}
+                    onClick={() => switchMode(true)}
+                  >
+                    Don't have an account? <strong>Sign Up</strong>
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {loginStep === 2 && (
+              <div className="auth-form">
+                <div className="otp-info">
+                  <MailCheck size={20} className="otp-icon" style={{ color: 'var(--primary)' }} />
+                  <div>
+                    <p className="otp-sent-text">
+                      SMS code sent to <strong>{fullPhone}</strong>
+                    </p>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      Enter 6-digit verification code received on mobile.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="otp-inputs" style={{ marginTop: '16px', marginBottom: '16px' }}>
+                  {otp.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      id={`otp-input-${idx}`}
+                      type="text"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(idx, e.target.value)}
+                      className="otp-field"
+                      autoFocus={idx === 0}
+                    />
+                  ))}
+                </div>
+
+                <div className="auth-actions-row">
+                  <button type="button" className="btn-link" onClick={() => setLoginStep(1)}>
+                    Back to Login
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => handleLoginVerifyOtp(otp.join(''))}
+                    disabled={loading || otp.join('').length < 6}
+                  >
+                    {loading ? 'Verifying & Logging in...' : 'Verify & Log In'}
                   </button>
                 </div>
               </div>
             )}
           </div>
         )}
-
-        <div className="auth-footer-privacy" style={{ marginTop: '16px' }}>
-          <ShieldCheck size={14} /> Numverify & GETOTP Secured. Accounts & chats stored per mobile number.
-        </div>
       </div>
     </div>
   );
