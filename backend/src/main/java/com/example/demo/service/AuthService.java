@@ -13,11 +13,13 @@ public class AuthService {
     private final UserRepository userRepository;
     private final NumverifyService numverifyService;
     private final GetOtpService getOtpService;
+    private final CryptoService cryptoService;
 
-    public AuthService(UserRepository userRepository, NumverifyService numverifyService, GetOtpService getOtpService) {
+    public AuthService(UserRepository userRepository, NumverifyService numverifyService, GetOtpService getOtpService, CryptoService cryptoService) {
         this.userRepository = userRepository;
         this.numverifyService = numverifyService;
         this.getOtpService = getOtpService;
+        this.cryptoService = cryptoService;
     }
 
     public AuthDto.AuthResponse sendOtp(String phoneNumber) {
@@ -101,7 +103,8 @@ public class AuthService {
         }
 
         String name = (displayName != null && !displayName.trim().isEmpty()) ? displayName.trim() : getDisplayNameForPhone(cleanedPhone);
-        User newUser = new User(cleanedPhone, name, password.trim());
+        String hashedPassword = cryptoService.hashPassword(password.trim());
+        User newUser = new User(cleanedPhone, name, hashedPassword);
         userRepository.save(newUser);
         return new AuthDto.AuthResponse(true, "Account created successfully!", newUser.getPhoneNumber(), newUser.getDisplayName());
     }
@@ -130,10 +133,10 @@ public class AuthService {
                             null
                     );
                 }
-                user.setPassword(trimmedPassword);
+                user.setPassword(cryptoService.hashPassword(trimmedPassword));
                 userRepository.save(user);
                 return new AuthDto.AuthResponse(true, "Password set and login successful", user.getPhoneNumber(), user.getDisplayName());
-            } else if (user.getPassword().equals(trimmedPassword)) {
+            } else if (cryptoService.matchesPassword(trimmedPassword, user.getPassword())) {
                 return new AuthDto.AuthResponse(true, "Login successful", user.getPhoneNumber(), user.getDisplayName());
             } else {
                 return new AuthDto.AuthResponse(false, "Incorrect password. Please try again.", cleanedPhone, null);

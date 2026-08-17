@@ -136,6 +136,9 @@ export default function ChatWindow({
           </div>
 
           <div className="chat-header-badge-row">
+            <span className="badge badge-e2ee" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.35)' }}>
+              <Lock size={11} /> 🔒 E2EE AES-256
+            </span>
             {savedPermanently ? (
               <span className="badge badge-permanent">
                 <Lock size={12} /> Saved Permanently
@@ -204,9 +207,9 @@ export default function ChatWindow({
 
       {/* Messages Feed */}
       <div className="chat-messages-feed">
-        <div className="chat-start-notice">
-          <ShieldCheck size={20} />
-          <p>Right-click or press & hold any message to access options like <strong>Delete for Everyone</strong> (before receiver sees) and <strong>Message Info</strong>.</p>
+        <div className="chat-start-notice" style={{ background: 'rgba(99, 102, 241, 0.08)', borderColor: 'rgba(99, 102, 241, 0.25)' }}>
+          <ShieldCheck size={20} style={{ color: '#818cf8' }} />
+          <p>🔒 <strong>End-to-End Encrypted (AES-256-GCM)</strong>. Messages and account data are zero-knowledge encrypted on device.</p>
         </div>
 
         {messages.map((msg, index) => {

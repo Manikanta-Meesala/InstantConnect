@@ -77,9 +77,9 @@ export default function InfoPanel({ mode, setMode, stats, onClosePanel }) {
           </div>
 
           <div className="manual-section">
-            <h5 className="section-heading">🔄 Dynamic Activity Sorting</h5>
+            <h5 className="section-heading">🔒 Security & E2EE Encryption</h5>
             <p className="manual-text">
-              Tiles are automatically sorted by <strong>last activity timestamp</strong>. The most recently active conversation moves to position (0, 0).
+              All messages are <strong>End-to-End Encrypted (AES-256-GCM)</strong> and account credentials use SHA-256 hashing for zero-knowledge privacy.
             </p>
           </div>
 
