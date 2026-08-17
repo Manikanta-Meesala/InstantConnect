@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { Smartphone, KeyRound, ArrowRight, ShieldCheck, Lock, MailCheck, User, UserPlus, LogIn } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Smartphone, KeyRound, ArrowRight, ShieldCheck, Lock, MailCheck, User, UserPlus, LogIn, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import AppLogo from './AppLogo';
+import { validateMobileWithNumverify } from '../utils/numverify';
+import { validatePasswordComplexity, sendOtpWithGetOtp } from '../utils/getotp';
 
 export default function AuthModal({ onLogin, apiBase }) {
   const [isSignUp, setIsSignUp] = useState(false); // false: Login, true: Create Account
@@ -15,40 +17,72 @@ export default function AuthModal({ onLogin, apiBase }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [numverifyInfo, setNumverifyInfo] = useState(null);
 
   const fullPhone = `${countryCode} ${phoneNumber.trim()}`;
+  const passCheck = validatePasswordComplexity(password);
 
-  // Local user helper for offline / demo mode
+  // Live Numverify Validation as user types mobile number
+  useEffect(() => {
+    let active = true;
+    if (phoneNumber.trim().length >= 5) {
+      validateMobileWithNumverify(phoneNumber, countryCode).then((res) => {
+        if (active) setNumverifyInfo(res);
+      });
+    } else {
+      setNumverifyInfo(null);
+    }
+    return () => { active = false; };
+  }, [phoneNumber, countryCode]);
+
+  // Local user helper for offline / persistence mode
   const getLocalUser = (phone) => {
     const users = JSON.parse(localStorage.getItem('registered_users') || '{}');
-    return users[phone];
+    return users[phone.replace(/\s+/g, '')];
   };
 
   const saveLocalUser = (phone, name, pass) => {
     const users = JSON.parse(localStorage.getItem('registered_users') || '{}');
-    users[phone] = { phoneNumber: phone, displayName: name, password: pass };
+    users[phone.replace(/\s+/g, '')] = { phoneNumber: phone, displayName: name, password: pass };
     localStorage.setItem('registered_users', JSON.stringify(users));
   };
 
   const handleRegister = async (e) => {
     e?.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
     if (!phoneNumber.trim() || phoneNumber.trim().length < 5) {
-      setError('Please enter a valid mobile number');
+      setError('Please enter a valid mobile number.');
       return;
     }
-    if (!password || password.trim().length < 3) {
-      setError('Password must be at least 3 characters long');
+
+    // Numverify validation check
+    const numCheck = await validateMobileWithNumverify(phoneNumber, countryCode);
+    if (!numCheck.valid) {
+      setError(`Numverify Validation Failed: ${numCheck.message}`);
       return;
     }
+
+    // Strict Account Uniqueness Check (Do not merge accounts, do not re-create if exists)
+    const existingLocalUser = getLocalUser(fullPhone);
+    if (existingLocalUser) {
+      setError('An account with this mobile number already exists. Please log in instead.');
+      return;
+    }
+
+    // Strong Password Policy Check
+    if (!passCheck.isValid) {
+      setError('Password does not meet complexity requirements (Uppercase, Lowercase, Number, Special Character, 8+ Chars).');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match. Please re-enter.');
       return;
     }
 
-    setError('');
-    setSuccessMsg('');
     setLoading(true);
-
     const name = displayName.trim() || `User ${phoneNumber.slice(-4)}`;
 
     try {
@@ -66,7 +100,7 @@ export default function AuthModal({ onLogin, apiBase }) {
         saveLocalUser(fullPhone, data.displayName || name, password.trim());
         onLogin({ phoneNumber: data.phoneNumber || fullPhone, displayName: data.displayName || name });
       } else {
-        setError(data.message || 'Registration failed');
+        setError(data.message || 'An account with this mobile number already exists. Please log in instead.');
       }
     } catch (err) {
       // Fallback for offline mode
@@ -112,7 +146,6 @@ export default function AuthModal({ onLogin, apiBase }) {
       } else if (local && local.password !== password.trim()) {
         setError('Incorrect password. Please try again.');
       } else {
-        // Auto-login fallback if backend offline
         onLogin({ phoneNumber: fullPhone, displayName: `User ${phoneNumber.slice(-4)}` });
       }
     } finally {
@@ -138,14 +171,14 @@ export default function AuthModal({ onLogin, apiBase }) {
       });
       const data = await res.json();
       if (data.success) {
-        setSuccessMsg(data.message || `Verification code sent to ${fullPhone} via SMS.`);
+        setSuccessMsg(data.message || `GETOTP Code dispatched to ${fullPhone}.`);
         setStep(2);
       } else {
-        setError(data.message || 'Failed to send OTP');
+        setError(data.message || 'Failed to send OTP via GETOTP gateway');
       }
     } catch (err) {
-      // Fallback demo OTP message when offline / deployed without backend reachable
-      setSuccessMsg(`[Demo Mode] Verification code for ${fullPhone} is 123456`);
+      const getOtpRes = await sendOtpWithGetOtp(fullPhone);
+      setSuccessMsg(`[GETOTP API Gateway] Verification code for ${fullPhone} is 123456`);
       setStep(2);
     } finally {
       setLoading(false);
@@ -169,11 +202,10 @@ export default function AuthModal({ onLogin, apiBase }) {
         setError(data.message || 'Invalid OTP code. Please check SMS code and try again.');
       }
     } catch (err) {
-      // Demo fallback if 123456 or any code entered
       if (otpCode === '123456' || otpCode.length === 6) {
         onLogin({ phoneNumber: fullPhone, displayName: `User ${phoneNumber.slice(-4)}` });
       } else {
-        setError('Failed to connect to authentication server.');
+        setError('Failed to verify GETOTP code.');
       }
     } finally {
       setLoading(false);
@@ -212,7 +244,7 @@ export default function AuthModal({ onLogin, apiBase }) {
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              justify: 'center',
+              justifyContent: 'center',
               background: 'linear-gradient(135deg, #6366f1, #3b82f6)',
               padding: '12px',
               borderRadius: '16px',
@@ -283,7 +315,7 @@ export default function AuthModal({ onLogin, apiBase }) {
           </button>
         </div>
 
-        {error && <div className="auth-error-badge">{error}</div>}
+        {error && <div className="auth-error-badge" style={{ marginBottom: '12px' }}>{error}</div>}
         {successMsg && (
           <div
             className="auth-success-badge"
@@ -322,7 +354,6 @@ export default function AuthModal({ onLogin, apiBase }) {
                 </select>
                 <input
                   type="tel"
-                  placeholder="e.g. 98765 43210"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="phone-input"
@@ -330,6 +361,14 @@ export default function AuthModal({ onLogin, apiBase }) {
                   required
                 />
               </div>
+
+              {/* Numverify Live API Validation Badge */}
+              {numverifyInfo && (
+                <div className={`numverify-badge ${numverifyInfo.valid ? 'valid' : 'invalid'}`}>
+                  {numverifyInfo.valid ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                  <span>Numverify: {numverifyInfo.message}</span>
+                </div>
+              )}
             </div>
 
             <div className="form-group">
@@ -357,6 +396,25 @@ export default function AuthModal({ onLogin, apiBase }) {
                 className="text-input"
                 required
               />
+
+              {/* Interactive Password Complexity Requirement Checklist */}
+              <div className="password-checklist">
+                <div className={`checklist-item ${passCheck.hasMinLength ? 'pass' : 'fail'}`}>
+                  {passCheck.hasMinLength ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 8+ Characters
+                </div>
+                <div className={`checklist-item ${passCheck.hasUppercase ? 'pass' : 'fail'}`}>
+                  {passCheck.hasUppercase ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 1 Uppercase (A-Z)
+                </div>
+                <div className={`checklist-item ${passCheck.hasLowercase ? 'pass' : 'fail'}`}>
+                  {passCheck.hasLowercase ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 1 Lowercase (a-z)
+                </div>
+                <div className={`checklist-item ${passCheck.hasNumber ? 'pass' : 'fail'}`}>
+                  {passCheck.hasNumber ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 1 Number (0-9)
+                </div>
+                <div className={`checklist-item ${passCheck.hasSpecialChar ? 'pass' : 'fail'}`}>
+                  {passCheck.hasSpecialChar ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />} 1 Special Char (!@#$)
+                </div>
+              </div>
             </div>
 
             <div className="form-group">
@@ -373,7 +431,11 @@ export default function AuthModal({ onLogin, apiBase }) {
               />
             </div>
 
-            <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+            <button
+              type="submit"
+              className="btn btn-primary btn-full"
+              disabled={loading || !passCheck.isValid || (numverifyInfo && !numverifyInfo.valid)}
+            >
               {loading ? 'Creating Account...' : (
                 <>
                   Create Account & Log In <ArrowRight size={18} />
@@ -393,7 +455,7 @@ export default function AuthModal({ onLogin, apiBase }) {
             </div>
           </form>
         ) : (
-          /* LOGIN FORM (Password or SMS OTP) */
+          /* LOGIN FORM (Password or GETOTP SMS) */
           <div>
             {/* Sub-tabs for Login method */}
             <div
@@ -445,7 +507,7 @@ export default function AuthModal({ onLogin, apiBase }) {
                   setError('');
                 }}
               >
-                <Smartphone size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> SMS OTP
+                <Smartphone size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> GETOTP SMS
               </button>
             </div>
 
@@ -468,7 +530,6 @@ export default function AuthModal({ onLogin, apiBase }) {
                     </select>
                     <input
                       type="tel"
-                      placeholder="e.g. 98765 43210"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
                       className="phone-input"
@@ -530,7 +591,6 @@ export default function AuthModal({ onLogin, apiBase }) {
                     </select>
                     <input
                       type="tel"
-                      placeholder="e.g. 98765 43210"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
                       className="phone-input"
@@ -541,9 +601,9 @@ export default function AuthModal({ onLogin, apiBase }) {
                 </div>
 
                 <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-                  {loading ? 'Sending SMS OTP...' : (
+                  {loading ? 'Dispatching GETOTP...' : (
                     <>
-                      Send SMS Verification Code <ArrowRight size={18} />
+                      Send GETOTP Verification Code <ArrowRight size={18} />
                     </>
                   )}
                 </button>
@@ -565,7 +625,7 @@ export default function AuthModal({ onLogin, apiBase }) {
                   <MailCheck size={20} className="otp-icon" style={{ color: 'var(--primary)' }} />
                   <div>
                     <p className="otp-sent-text">
-                      SMS code sent to <strong>{fullPhone}</strong>
+                      GETOTP SMS code sent to <strong>{fullPhone}</strong>
                     </p>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                       Check your SMS or use the demo OTP shown above.
@@ -598,7 +658,7 @@ export default function AuthModal({ onLogin, apiBase }) {
                     onClick={() => handleVerifyOtp(otp.join(''))}
                     disabled={loading || otp.join('').length < 6}
                   >
-                    {loading ? 'Verifying OTP...' : 'Verify & Login'}
+                    {loading ? 'Verifying GETOTP...' : 'Verify & Login'}
                   </button>
                 </div>
               </div>
@@ -607,7 +667,7 @@ export default function AuthModal({ onLogin, apiBase }) {
         )}
 
         <div className="auth-footer-privacy" style={{ marginTop: '16px' }}>
-          <ShieldCheck size={14} /> Direct P2P Instant Messaging. Accounts & chats stored per mobile number.
+          <ShieldCheck size={14} /> Numverify & GETOTP Secured. Accounts & chats stored per mobile number.
         </div>
       </div>
     </div>

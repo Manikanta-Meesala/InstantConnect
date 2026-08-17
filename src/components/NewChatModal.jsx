@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, QrCode, Phone, UserPlus, Sparkles, Copy, Check, Camera, ExternalLink } from 'lucide-react';
+import { X, QrCode, Phone, UserPlus, Sparkles, Copy, Check, Camera, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
 import { generateQRCodeSVG } from '../utils/qrcode';
+import { validateMobileWithNumverify } from '../utils/numverify';
 
 export default function NewChatModal({ onClose, onCreateChat, currentUser }) {
   const [activeTab, setActiveTab] = useState('phone'); // 'phone', 'qr', 'scan'
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+91');
-  const [initialMessage, setInitialMessage] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [scannedUrlInput, setScannedUrlInput] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [numverifyInfo, setNumverifyInfo] = useState(null);
+
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
@@ -18,22 +20,32 @@ export default function NewChatModal({ onClose, onCreateChat, currentUser }) {
   const shareableUrl = `${window.location.origin}${window.location.pathname}#connect?phone=${encodeURIComponent(fullUserPhone)}`;
   const qrSvgMarkup = generateQRCodeSVG(shareableUrl, { size: 200, color: '#0f172a', bgColor: '#ffffff' });
 
-  const quickDemoContacts = [
-    { name: 'Mani', phone: '+91 63009 98877', avatar: '👨‍💻' },
-    { name: 'Rahul', phone: '+91 98765 11223', avatar: '☕' },
-    { name: 'Priya', phone: '+91 91234 44556', avatar: '🎨' },
-    { name: 'Alex', phone: '+91 99887 22334', avatar: '🚀' },
-  ];
+  // Live Numverify mobile validation as user types
+  useEffect(() => {
+    let active = true;
+    if (phoneNumber.trim().length >= 5) {
+      validateMobileWithNumverify(phoneNumber, countryCode).then((res) => {
+        if (active) setNumverifyInfo(res);
+      });
+    } else {
+      setNumverifyInfo(null);
+    }
+    return () => { active = false; };
+  }, [phoneNumber, countryCode]);
 
-  const handleStartPhoneChat = (e) => {
+  const handleStartPhoneChat = async (e) => {
     e?.preventDefault();
     if (!phoneNumber.trim()) return;
-    const fullPeerPhone = `${countryCode} ${phoneNumber.trim()}`;
-    onCreateChat(fullPeerPhone, initialMessage || 'Hello! InstantConnect chat started.');
-  };
 
-  const handleQuickConnect = (contact) => {
-    onCreateChat(contact.phone, `Hi ${contact.name}! Connected via InstantConnect.`);
+    // Numverify check before creating chat
+    const check = await validateMobileWithNumverify(phoneNumber, countryCode);
+    if (!check.valid) {
+      alert(`Numverify Mobile Validation Failed: ${check.message}`);
+      return;
+    }
+
+    const fullPeerPhone = `${countryCode} ${phoneNumber.trim()}`;
+    onCreateChat(fullPeerPhone, 'Hello! InstantConnect chat started.');
   };
 
   const handleCopyLink = () => {
@@ -140,7 +152,6 @@ export default function NewChatModal({ onClose, onCreateChat, currentUser }) {
                 </select>
                 <input
                   type="tel"
-                  placeholder="e.g. 98765 43210"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="phone-input"
@@ -148,42 +159,25 @@ export default function NewChatModal({ onClose, onCreateChat, currentUser }) {
                   required
                 />
               </div>
-            </div>
 
-            <div className="form-group">
-              <label className="form-label">Initial Message (Optional)</label>
-              <input
-                type="text"
-                placeholder="Say Hi..."
-                value={initialMessage}
-                onChange={(e) => setInitialMessage(e.target.value)}
-                className="text-input"
-              />
-            </div>
-
-            <div className="quick-connect-section">
-              <label className="form-label">Or Quick Connect Demo Contact:</label>
-              <div className="quick-contact-grid">
-                {quickDemoContacts.map((contact) => (
-                  <button
-                    key={contact.phone}
-                    type="button"
-                    className="quick-contact-card"
-                    onClick={() => handleQuickConnect(contact)}
-                  >
-                    <span className="contact-emoji">{contact.avatar}</span>
-                    <span className="contact-name">{contact.name}</span>
-                    <span className="contact-phone">{contact.phone}</span>
-                  </button>
-                ))}
-              </div>
+              {/* Numverify Live Badge */}
+              {numverifyInfo && (
+                <div className={`numverify-badge ${numverifyInfo.valid ? 'valid' : 'invalid'}`}>
+                  {numverifyInfo.valid ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                  <span>Numverify: {numverifyInfo.message}</span>
+                </div>
+              )}
             </div>
 
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={onClose}>
                 Cancel
               </button>
-              <button type="submit" className="btn btn-primary" disabled={!phoneNumber.trim()}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={!phoneNumber.trim() || (numverifyInfo && !numverifyInfo.valid)}
+              >
                 Start Chat
               </button>
             </div>
@@ -270,7 +264,6 @@ export default function NewChatModal({ onClose, onCreateChat, currentUser }) {
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <input
                   type="text"
-                  placeholder="Paste URL or phone number e.g. +91 98765 43210"
                   value={scannedUrlInput}
                   onChange={(e) => setScannedUrlInput(e.target.value)}
                   className="text-input"

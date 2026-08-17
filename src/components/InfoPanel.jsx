@@ -141,9 +141,6 @@ export default function InfoPanel({ mode, setMode, stats, onClosePanel }) {
             </div>
           </div>
 
-          <div className="stats-live-footer">
-            <CheckCircle size={14} className="text-green" /> Live synchronization with Java Spring Boot backend & MySQL.
-          </div>
         </div>
       )}
     </aside>
