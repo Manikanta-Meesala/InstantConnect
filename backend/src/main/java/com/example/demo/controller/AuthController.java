@@ -32,4 +32,10 @@ public class AuthController {
         AuthDto.AuthResponse response = authService.loginWithPassword(request.getPhoneNumber(), request.getPassword());
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/register")
+    public ResponseEntity<AuthDto.AuthResponse> register(@RequestBody AuthDto.RegisterRequest request) {
+        AuthDto.AuthResponse response = authService.register(request.getPhoneNumber(), request.getDisplayName(), request.getPassword());
+        return ResponseEntity.ok(response);
+    }
 }

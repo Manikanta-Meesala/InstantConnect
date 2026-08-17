@@ -36,7 +36,7 @@ public class AuthService {
 
         return new AuthDto.AuthResponse(
                 true,
-                "Verification code sent to " + cleanedPhone + " via SMS.",
+                "Verification code sent to " + cleanedPhone + " via SMS. (Demo OTP: " + generatedOtp + ")",
                 cleanedPhone,
                 getDisplayNameForPhone(cleanedPhone)
         );
@@ -63,6 +63,39 @@ public class AuthService {
         return new AuthDto.AuthResponse(false, "Invalid OTP code. Please check your SMS and try again.", cleanedPhone, null);
     }
 
+    public AuthDto.AuthResponse register(String phoneNumber, String displayName, String password) {
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            return new AuthDto.AuthResponse(false, "Phone number is required", null, null);
+        }
+        if (password == null || password.trim().isEmpty()) {
+            return new AuthDto.AuthResponse(false, "Password is required", null, null);
+        }
+
+        String cleanedPhone = phoneNumber.replaceAll("\\s+", "");
+        String trimmedPassword = password.trim();
+
+        Optional<User> existingUserOpt = userRepository.findByPhoneNumber(cleanedPhone);
+
+        if (existingUserOpt.isPresent()) {
+            User user = existingUserOpt.get();
+            if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+                return new AuthDto.AuthResponse(false, "An account with this mobile number already exists. Please log in.", cleanedPhone, null);
+            }
+            // User exists without password (e.g. from OTP creation)
+            user.setPassword(trimmedPassword);
+            if (displayName != null && !displayName.trim().isEmpty()) {
+                user.setDisplayName(displayName.trim());
+            }
+            userRepository.save(user);
+            return new AuthDto.AuthResponse(true, "Password registered successfully!", user.getPhoneNumber(), user.getDisplayName());
+        }
+
+        String name = (displayName != null && !displayName.trim().isEmpty()) ? displayName.trim() : getDisplayNameForPhone(cleanedPhone);
+        User newUser = new User(cleanedPhone, name, trimmedPassword);
+        userRepository.save(newUser);
+        return new AuthDto.AuthResponse(true, "Account created successfully!", newUser.getPhoneNumber(), newUser.getDisplayName());
+    }
+
     public AuthDto.AuthResponse loginWithPassword(String phoneNumber, String password) {
         if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
             return new AuthDto.AuthResponse(false, "Phone number is required", null, null);
@@ -79,7 +112,7 @@ public class AuthService {
         if (existingUserOpt.isPresent()) {
             User user = existingUserOpt.get();
             if (user.getPassword() == null || user.getPassword().isEmpty()) {
-                // Set password on first login
+                // Set password on first login if user was created without one
                 user.setPassword(trimmedPassword);
                 userRepository.save(user);
                 return new AuthDto.AuthResponse(true, "Password registered successfully and logged in", user.getPhoneNumber(), user.getDisplayName());
@@ -89,10 +122,7 @@ public class AuthService {
                 return new AuthDto.AuthResponse(false, "Incorrect password. Please try again.", cleanedPhone, null);
             }
         } else {
-            // Create new user with password
-            User newUser = new User(cleanedPhone, getDisplayNameForPhone(cleanedPhone), trimmedPassword);
-            userRepository.save(newUser);
-            return new AuthDto.AuthResponse(true, "Account created & logged in successfully", newUser.getPhoneNumber(), newUser.getDisplayName());
+            return new AuthDto.AuthResponse(false, "Account not found for this mobile number. Please sign up first.", cleanedPhone, null);
         }
     }
 

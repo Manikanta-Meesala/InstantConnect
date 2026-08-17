@@ -30,6 +30,15 @@ public class AuthDto {
     }
 
     @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RegisterRequest {
+        private String phoneNumber;
+        private String displayName;
+        private String password;
+    }
+
+    @Data
     @AllArgsConstructor
     @NoArgsConstructor
     public static class AuthResponse {
