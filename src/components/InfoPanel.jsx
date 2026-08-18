@@ -36,7 +36,9 @@ export default function InfoPanel({ mode, setMode, stats, onClosePanel }) {
             <div className="philosophy-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
               <AppLogo size={28} color="var(--primary)" />
             </div>
-            <h4>"Connect.Chat.Clear"</h4>
+            <h4 style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#10b981' }}>
+              <Lock size={16} /> Security & E2EE Encryption
+            </h4>
             <p>
               InstantConnect lets you chat with anyone instantly without saving their number into your phone book.
             </p>

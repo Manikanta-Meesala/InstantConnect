@@ -15,7 +15,7 @@ export default function TileGrid({
       {/* Background Watermark */}
       <div className="watermark-bg" aria-hidden="true">
         <div className="watermark-title">InstantConnect</div>
-        <div className="watermark-tagline">connect.chat.clear</div>
+        <div className="watermark-tagline">Security & E2EE Encryption</div>
       </div>
       {conversations.length === 0 ? (
         <div className="empty-tiles-state glass-panel">

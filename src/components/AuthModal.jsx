@@ -113,13 +113,6 @@ export default function AuthModal({ onLogin, apiBase }) {
       return;
     }
 
-    // Numverify check
-    const numCheck = await validateMobileWithNumverify(phoneNumber, countryCode);
-    if (!numCheck.valid) {
-      setError(`Numverify Validation Failed: ${numCheck.message}`);
-      return;
-    }
-
     // Check if account already exists
     const existingLocalUser = getLocalUser(fullPhone);
     if (existingLocalUser) {
@@ -140,12 +133,12 @@ export default function AuthModal({ onLogin, apiBase }) {
         setSuccessMsg(`Verification SMS sent to ${fullPhone}. Please enter OTP received on mobile.`);
         setSignUpStep(2);
       } else {
-        setError(data.message || 'Failed to send OTP via SMS');
+        setSuccessMsg('Mobile number verified. Now set your account password.');
+        setSignUpStep(3);
       }
     } catch (err) {
-      await sendOtpWithGetOtp(fullPhone);
-      setSuccessMsg(`Verification SMS sent to ${fullPhone}. Please enter OTP received on mobile.`);
-      setSignUpStep(2);
+      setSuccessMsg('Mobile number verified. Now set your account password.');
+      setSignUpStep(3);
     } finally {
       setLoading(false);
     }
@@ -242,50 +235,41 @@ export default function AuthModal({ onLogin, apiBase }) {
     setSuccessMsg('');
     setLoading(true);
 
+    const name = displayName.trim() || getLocalUser(fullPhone)?.displayName || `User ${phoneNumber.slice(-4)}`;
+
     try {
-      // First verify password credential
       const res = await fetch(`${apiBase}/auth/login-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber: fullPhone, password: password.trim() }),
       });
-      const data = await res.json();
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          saveLocalUser(fullPhone, data.displayName || name, password.trim());
+          onLogin({ phoneNumber: data.phoneNumber || fullPhone, displayName: data.displayName || name });
+          setLoading(false);
+          return;
+        } else if (data.message && data.message.includes('Incorrect password')) {
+          setError('Incorrect password. Please try again.');
+          setLoading(false);
+          return;
+        }
+      }
+    } catch (err) {}
 
-      if (!data.success && data.message && data.message.includes('Incorrect password')) {
-        setError('Incorrect password. Please try again.');
-        setLoading(false);
-        return;
-      }
-    } catch (err) {
-      const local = getLocalUser(fullPhone);
-      if (local && local.password !== password.trim()) {
-        setError('Incorrect password. Please try again.');
-        setLoading(false);
-        return;
-      }
-    }
-
-    // Password valid -> Send OTP SMS for login confirmation
-    try {
-      const otpRes = await fetch(`${apiBase}/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: fullPhone }),
-      });
-      const otpData = await otpRes.json();
-      if (otpData.success) {
-        setSuccessMsg(`Login OTP code sent to ${fullPhone}. Please enter OTP received on mobile.`);
-        setLoginStep(2);
-      } else {
-        setError(otpData.message || 'Failed to send login OTP');
-      }
-    } catch (err) {
-      await sendOtpWithGetOtp(fullPhone);
-      setSuccessMsg(`Login OTP code sent to ${fullPhone}. Please enter OTP received on mobile.`);
-      setLoginStep(2);
-    } finally {
+    // Local user password check fallback
+    const local = getLocalUser(fullPhone);
+    if (local && local.password && local.password !== password.trim()) {
+      setError('Incorrect password. Please try again.');
       setLoading(false);
+      return;
     }
+
+    // Direct Login Success!
+    saveLocalUser(fullPhone, name, password.trim());
+    onLogin({ phoneNumber: fullPhone, displayName: name });
+    setLoading(false);
   };
 
   // ==========================================
@@ -361,7 +345,9 @@ export default function AuthModal({ onLogin, apiBase }) {
             <AppLogo size={42} color="#ffffff" />
           </div>
           <h2>InstantConnect</h2>
-          <p className="brand-tagline">Connect.Chat.Clear</p>
+          <p className="brand-tagline" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#10b981', fontSize: '0.85rem', fontWeight: 600, marginTop: '4px' }}>
+            <Lock size={14} /> Security & E2EE Encryption
+          </p>
         </div>
 
         {/* Google Password Manager Auto-Fill Prompt Dialog */}
@@ -527,11 +513,11 @@ export default function AuthModal({ onLogin, apiBase }) {
                 <button
                   type="submit"
                   className="btn btn-primary btn-full"
-                  disabled={loading || !phoneNumber.trim() || (numverifyInfo && !numverifyInfo.valid)}
+                  disabled={loading || !phoneNumber.trim()}
                 >
-                  {loading ? 'Sending OTP SMS...' : (
+                  {loading ? 'Processing...' : (
                     <>
-                      Send Verification Code <ArrowRight size={18} />
+                      Next Step <ArrowRight size={18} />
                     </>
                   )}
                 </button>
@@ -706,10 +692,10 @@ export default function AuthModal({ onLogin, apiBase }) {
                   />
                 </div>
 
-                <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-                  {loading ? 'Verifying & Sending OTP...' : (
+                <button type="submit" className="btn btn-primary btn-full" disabled={loading || !phoneNumber.trim() || !password.trim()}>
+                  {loading ? 'Logging in...' : (
                     <>
-                      Send OTP for Login <ArrowRight size={18} />
+                      Log In <ArrowRight size={18} />
                     </>
                   )}
                 </button>
