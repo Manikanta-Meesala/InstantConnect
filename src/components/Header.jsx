@@ -22,9 +22,7 @@ export default function Header({
         </div>
         <div className="brand-titles">
           <h1 className="brand-name">InstantConnect</h1>
-          <span className="brand-subtitle" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#10b981', fontWeight: 600 }}>
-            <Lock size={12} /> Security & E2EE Encryption
-          </span>
+          <span className="brand-subtitle">Connect.Chat.Clear</span>
         </div>
       </div>
 

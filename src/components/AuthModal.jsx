@@ -345,9 +345,7 @@ export default function AuthModal({ onLogin, apiBase }) {
             <AppLogo size={42} color="#ffffff" />
           </div>
           <h2>InstantConnect</h2>
-          <p className="brand-tagline" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#10b981', fontSize: '0.85rem', fontWeight: 600, marginTop: '4px' }}>
-            <Lock size={14} /> Security & E2EE Encryption
-          </p>
+          <p className="brand-tagline">Connect.Chat.Clear</p>
         </div>
 
         {/* Google Password Manager Auto-Fill Prompt Dialog */}
