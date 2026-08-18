@@ -7,6 +7,7 @@ import TimeWarpBar from './components/TimeWarpBar';
 import AuthModal from './components/AuthModal';
 import NewChatModal from './components/NewChatModal';
 import SavePermanentModal from './components/SavePermanentModal';
+import LogoutConfirmModal from './components/LogoutConfirmModal';
 import { getStoredUser, setStoredUser, getStoredTheme, setStoredTheme } from './utils/storage';
 import { calculateDaysRemaining } from './utils/formatters';
 
@@ -25,6 +26,7 @@ export default function App() {
   // Modals
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [savingConversation, setSavingConversation] = useState(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Apply theme class to body
   useEffect(() => {
@@ -443,7 +445,12 @@ export default function App() {
     setStoredUser(user);
   };
 
-  const handleLogout = () => {
+  const handleLogoutClick = () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setShowLogoutModal(false);
     setCurrentUser(null);
     setStoredUser(null);
     setConversations([]);
@@ -487,7 +494,7 @@ export default function App() {
         toggleTheme={toggleTheme}
         panelMode={panelMode}
         setPanelMode={setPanelMode}
-        onLogout={handleLogout}
+        onLogout={handleLogoutClick}
         stats={stats}
         onOpenQr={() => setShowNewChatModal(true)}
       />
@@ -557,6 +564,13 @@ export default function App() {
           onSave={handleSavePermanently}
         />
       )}
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleConfirmLogout}
+      />
     </div>
   );
 }

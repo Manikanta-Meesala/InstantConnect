@@ -1725,5 +1725,94 @@ button, select, option {
   gap: 8px;
 }
 
+/* GOOGLE PASSWORD MANAGER AUTO-FILL PROMPT */
+.gpm-prompt-banner {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(99, 102, 241, 0.2);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  color: #ffffff;
+}
+
+[data-theme='light'] .gpm-prompt-banner {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(66, 133, 244, 0.15);
+  color: #1e293b;
+}
+
+.gpm-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.gpm-brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gpm-key-icon {
+  color: #4285f4;
+}
+
+.gpm-brand-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  background: linear-gradient(90deg, #4285f4, #ea4335, #fbbc05, #34a853);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gpm-prompt-text {
+  font-size: 12.5px;
+  line-height: 1.4;
+  margin-bottom: 12px;
+  color: var(--text-main);
+}
+
+.gpm-btn-group {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.gpm-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.gpm-btn-cancel {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--panel-border);
+}
+
+.gpm-btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}
+
+.gpm-btn-fill {
+  background: #4285f4;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(66, 133, 244, 0.3);
+}
+
+.gpm-btn-fill:hover {
+  background: #3367d6;
+  box-shadow: 0 4px 14px rgba(66, 133, 244, 0.45);
+}
+
+
 
 

@@ -24,6 +24,46 @@ export default function AuthModal({ onLogin, apiBase }) {
   const [successMsg, setSuccessMsg] = useState('');
   const [numverifyInfo, setNumverifyInfo] = useState(null);
 
+  const [showAutoFillPrompt, setShowAutoFillPrompt] = useState(false);
+  const [hasAskedAutoFill, setHasAskedAutoFill] = useState(false);
+  const [autoFillDismissed, setAutoFillDismissed] = useState(false);
+
+  const handleInputChangeWithAutoFillCheck = (setter, val) => {
+    setter(val);
+    if (val.length > 0 && !hasAskedAutoFill && !autoFillDismissed) {
+      setHasAskedAutoFill(true);
+      setShowAutoFillPrompt(true);
+    }
+  };
+
+  const handleConfirmAutoFill = () => {
+    setShowAutoFillPrompt(false);
+    const users = JSON.parse(localStorage.getItem('registered_users') || '{}');
+    const userList = Object.values(users);
+
+    if (userList.length > 0) {
+      const lastUser = userList[userList.length - 1];
+      const phoneParts = (lastUser.phoneNumber || '').trim().split(' ');
+      if (phoneParts.length > 1) {
+        setCountryCode(phoneParts[0]);
+        setPhoneNumber(phoneParts.slice(1).join(''));
+      } else {
+        setPhoneNumber(lastUser.phoneNumber || '');
+      }
+      if (lastUser.password) setPassword(lastUser.password);
+      if (lastUser.displayName) setDisplayName(lastUser.displayName);
+    } else {
+      setPhoneNumber('9876543210');
+      setPassword('Pass@1234');
+      setDisplayName('Demo User');
+    }
+  };
+
+  const handleCancelAutoFill = () => {
+    setShowAutoFillPrompt(false);
+    setAutoFillDismissed(true);
+  };
+
   const fullPhone = `${countryCode} ${phoneNumber.trim()}`;
   const passCheck = validatePasswordComplexity(password);
 
@@ -324,6 +364,37 @@ export default function AuthModal({ onLogin, apiBase }) {
           <p className="brand-tagline">Connect.Chat.Clear</p>
         </div>
 
+        {/* Google Password Manager Auto-Fill Prompt Dialog */}
+        {showAutoFillPrompt && (
+          <div className="gpm-prompt-banner animate-scale">
+            <div className="gpm-header">
+              <div className="gpm-brand-wrap">
+                <KeyRound size={20} className="gpm-key-icon" />
+                <span className="gpm-brand-title">Google Password Manager</span>
+              </div>
+            </div>
+            <p className="gpm-prompt-text">
+              Do you want to auto-fill your saved credentials from Google Password Manager?
+            </p>
+            <div className="gpm-btn-group">
+              <button
+                type="button"
+                className="gpm-btn gpm-btn-cancel"
+                onClick={handleCancelAutoFill}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="gpm-btn gpm-btn-fill"
+                onClick={handleConfirmAutoFill}
+              >
+                Auto-Fill
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Main Tab Navigation: Log In vs Create Account */}
         <div
           className="auth-main-tabs"
@@ -405,7 +476,7 @@ export default function AuthModal({ onLogin, apiBase }) {
              =================================================== */
           <div>
             {signUpStep === 1 && (
-              <form onSubmit={handleSignUpSendOtp} className="auth-form">
+              <form onSubmit={handleSignUpSendOtp} className="auth-form" autoComplete="off">
                 <div className="form-group">
                   <label className="form-label">
                     <Smartphone size={16} /> Mobile Number
@@ -424,9 +495,9 @@ export default function AuthModal({ onLogin, apiBase }) {
                     <input
                       type="tel"
                       value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      onChange={(e) => handleInputChangeWithAutoFillCheck(setPhoneNumber, e.target.value)}
                       className="phone-input"
-                      autoComplete="tel"
+                      autoComplete="off"
                       autoFocus
                       required
                     />
@@ -449,7 +520,7 @@ export default function AuthModal({ onLogin, apiBase }) {
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     className="text-input"
-                    autoComplete="name"
+                    autoComplete="off"
                   />
                 </div>
 
@@ -524,7 +595,7 @@ export default function AuthModal({ onLogin, apiBase }) {
             )}
 
             {signUpStep === 3 && (
-              <form onSubmit={handleSignUpComplete} className="auth-form">
+              <form onSubmit={handleSignUpComplete} className="auth-form" autoComplete="off">
                 <div className="form-group">
                   <label className="form-label">
                     <Lock size={16} /> Set Password
@@ -532,9 +603,9 @@ export default function AuthModal({ onLogin, apiBase }) {
                   <input
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => handleInputChangeWithAutoFillCheck(setPassword, e.target.value)}
                     className="text-input"
-                    autoComplete="new-password"
+                    autoComplete="off"
                     autoFocus
                     required
                   />
@@ -568,7 +639,7 @@ export default function AuthModal({ onLogin, apiBase }) {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="text-input"
-                    autoComplete="new-password"
+                    autoComplete="off"
                     required
                   />
                 </div>
@@ -593,7 +664,7 @@ export default function AuthModal({ onLogin, apiBase }) {
              =================================================== */
           <div>
             {loginStep === 1 && (
-              <form onSubmit={handleLoginSendOtp} className="auth-form">
+              <form onSubmit={handleLoginSendOtp} className="auth-form" autoComplete="off">
                 <div className="form-group">
                   <label className="form-label">
                     <Smartphone size={16} /> Mobile Number
@@ -612,9 +683,9 @@ export default function AuthModal({ onLogin, apiBase }) {
                     <input
                       type="tel"
                       value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      onChange={(e) => handleInputChangeWithAutoFillCheck(setPhoneNumber, e.target.value)}
                       className="phone-input"
-                      autoComplete="username"
+                      autoComplete="off"
                       autoFocus
                       required
                     />
@@ -628,9 +699,9 @@ export default function AuthModal({ onLogin, apiBase }) {
                   <input
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => handleInputChangeWithAutoFillCheck(setPassword, e.target.value)}
                     className="text-input"
-                    autoComplete="current-password"
+                    autoComplete="off"
                     required
                   />
                 </div>
