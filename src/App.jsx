@@ -8,6 +8,7 @@ import AuthModal from './components/AuthModal';
 import NewChatModal from './components/NewChatModal';
 import SavePermanentModal from './components/SavePermanentModal';
 import LogoutConfirmModal from './components/LogoutConfirmModal';
+import UserProfileModal from './components/UserProfileModal';
 import { getStoredUser, setStoredUser, getStoredTheme, setStoredTheme } from './utils/storage';
 import { calculateDaysRemaining } from './utils/formatters';
 
@@ -27,6 +28,7 @@ export default function App() {
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [savingConversation, setSavingConversation] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   // Apply theme class to body
   useEffect(() => {
@@ -445,6 +447,11 @@ export default function App() {
     setStoredUser(user);
   };
 
+  const handleUpdateProfile = (updatedUser) => {
+    setCurrentUser(updatedUser);
+    setStoredUser(updatedUser);
+  };
+
   const handleLogoutClick = () => {
     setShowLogoutModal(true);
   };
@@ -496,7 +503,7 @@ export default function App() {
         setPanelMode={setPanelMode}
         onLogout={handleLogoutClick}
         stats={stats}
-        onOpenQr={() => setShowNewChatModal(true)}
+        onOpenProfile={() => setShowProfileModal(true)}
       />
 
       {/* Interactive Time Warp Simulation Bar */}
@@ -571,6 +578,17 @@ export default function App() {
         onClose={() => setShowLogoutModal(false)}
         onConfirm={handleConfirmLogout}
       />
+
+      {/* User Profile & Account Settings Modal */}
+      {showProfileModal && (
+        <UserProfileModal
+          currentUser={currentUser}
+          onClose={() => setShowProfileModal(false)}
+          onUpdateProfile={handleUpdateProfile}
+          theme={theme}
+          toggleTheme={toggleTheme}
+        />
+      )}
     </div>
   );
 }

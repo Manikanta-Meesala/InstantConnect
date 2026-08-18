@@ -12,7 +12,7 @@ export default function Header({
   setPanelMode,
   onLogout,
   stats,
-  onOpenQr
+  onOpenProfile
 }) {
   return (
     <header className="app-header glass-header">
@@ -70,10 +70,14 @@ export default function Header({
           {theme === 'dark' ? <Sun size={20} className="text-gold" /> : <Moon size={20} className="text-indigo" />}
         </button>
 
-        {/* User Profile Chip with My QR Code */}
-        <div className="user-profile-chip" onClick={onOpenQr} title="View My QR Code" style={{ cursor: 'pointer' }}>
-          <div className="user-avatar-circle">
-            {currentUser.displayName ? currentUser.displayName[0].toUpperCase() : '⚡'}
+        {/* User Profile Chip */}
+        <div className="user-profile-chip" onClick={onOpenProfile} title="View My Profile & Settings" style={{ cursor: 'pointer' }}>
+          <div className="user-avatar-circle" style={{ overflow: 'hidden' }}>
+            {currentUser?.avatarUrl ? (
+              <img src={currentUser.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              currentUser.displayName ? currentUser.displayName[0].toUpperCase() : '⚡'
+            )}
           </div>
           <div className="user-info-text">
             <span className="user-name">{currentUser.displayName || 'You'}</span>
